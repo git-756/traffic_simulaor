@@ -89,24 +89,45 @@ class Simulation:
         direction = random.choice([1, -1])
         self.vehicles.append(Vehicle(road, direction))
 
+# simulation.py の check_can_move メソッドを書き換え
     def check_can_move(self, vehicle):
         """車両が信号に従って動けるか判定する"""
-        stop_line_ns = 400
-        stop_line_we = 400
-        
+        # 交差点の境界座標
+        INTERSECTION_Y_START = 350
+        INTERSECTION_Y_END = 550
+        INTERSECTION_X_START = 350
+        INTERSECTION_X_END = 550
+
+        # 車両の先端が停止すべきかを判定する範囲
+        DETECTION_RANGE = 50 
+
         if vehicle.road == "NS":
-            # 南向き(direction=-1)で停止線より手前、かつ信号が赤か黄の場合
-            if vehicle.direction == -1 and 350 < vehicle.y < stop_line_ns and self.ns_light.current_state in ["赤", "黄"]:
-                return False
-            # 北向き(direction=1)で停止線より手前、かつ信号が赤か黄の場合
-            if vehicle.direction == 1 and 450 > vehicle.y > stop_line_ns and self.ns_light.current_state in ["赤", "黄"]:
-                return False
+            light_state = self.ns_light.current_state
+            if light_state in ["赤", "黄"]:
+                # 北から南へ向かう車両 (direction=-1)
+                # 車両の下端が交差点の北端に近づいているか
+                vehicle_front_y = vehicle.y + vehicle.height
+                if (INTERSECTION_Y_START - DETECTION_RANGE) < vehicle_front_y < INTERSECTION_Y_START:
+                    return False
+            
+                # 南から北へ向かう車両 (direction=1)
+                # 車両の上端が交差点の南端に近づいているか
+                vehicle_front_y = vehicle.y
+                if INTERSECTION_Y_END < vehicle_front_y < (INTERSECTION_Y_END + DETECTION_RANGE):
+                    return False
         else: # WE
-            # 西向き(direction=-1)で停止線より手前、かつ信号が赤か黄の場合
-            if vehicle.direction == -1 and 450 > vehicle.x > stop_line_we and self.we_light.current_state in ["赤", "黄"]:
-                return False
-            # 東向き(direction=1)で停止線より手前、かつ信号が赤か黄の場合
-            if vehicle.direction == 1 and 350 < vehicle.x < stop_line_we and self.we_light.current_state in ["赤", "黄"]:
-                return False
+            light_state = self.we_light.current_state
+            if light_state in ["赤", "黄"]:
+                # 東から西へ向かう車両 (direction=-1)
+                # 車両の右端が交差点の東端に近づいているか
+                vehicle_front_x = vehicle.x + vehicle.height # 横向きなのでheight
+                if INTERSECTION_X_END < vehicle_front_x < (INTERSECTION_X_END + DETECTION_RANGE):
+                    return False
+
+                # 西から東へ向かう車両 (direction=1)
+                # 車両の左端が交差点の西端に近づいているか
+                vehicle_front_x = vehicle.x
+                if (INTERSECTION_X_START - DETECTION_RANGE) < vehicle_front_x < INTERSECTION_X_START:
+                    return False
         
         return True
