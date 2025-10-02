@@ -83,47 +83,46 @@ class Simulation:
     def spawn_vehicle(self):
         road = random.choice(["NS", "WE"])
         direction = random.choice([1, -1])
-        # 新しい車両が既存の車両と重ならないかチェック
-        # (簡易的なチェック: 同じ進入路の最後の車と十分に離れているか)
-        # ※今回はcheck_can_moveが頑健になったので、ここでのチェックは不要
         self.vehicles.append(Vehicle(road, direction))
 
     def check_can_move(self, vehicle):
         """車両が動けるか（信号と先行車）を判定する"""
         
         # --- 1. 信号のチェック ---
-        STOP_LINE_N = 350
-        STOP_LINE_S = 550
-        STOP_LINE_W = 350
-        STOP_LINE_E = 550
+        STOP_LINE_N = 350 # 南向き車両の停止線 Y座標
+        STOP_LINE_S = 550 # 北向き車両の停止線 Y座標
+        STOP_LINE_W = 350 # 東向き車両の停止線 X座標
+        STOP_LINE_E = 550 # 西向き車両の停止線 X座標
         
         light_state = self.ns_light.current_state if vehicle.road == "NS" else self.we_light.current_state
         if light_state in ["赤", "黄"]:
+            # 停止判定を行う範囲
+            detection_range = vehicle.speed * 2 # 2フレーム先で止まれるように少し手前から検知
+
             if vehicle.road == "NS":
-                # 南向き (N->S, dir=-1)
-                if vehicle.direction == -1 and (vehicle.y + vehicle.draw_height) > STOP_LINE_N - 20 and (vehicle.y + vehicle.draw_height) <= STOP_LINE_N:
+                # 南向き (N->S, dir=-1), 車両の前端は y + draw_height
+                if vehicle.direction == -1 and (vehicle.y + vehicle.draw_height) > STOP_LINE_N - detection_range and (vehicle.y + vehicle.draw_height) <= STOP_LINE_N:
                     return False
-                # 北向き (S->N, dir=1)
-                if vehicle.direction == 1 and vehicle.y < STOP_LINE_S + 20 and vehicle.y >= STOP_LINE_S:
+                # 北向き (S->N, dir=1), 車両の前端は y
+                if vehicle.direction == 1 and vehicle.y < STOP_LINE_S + detection_range and vehicle.y >= STOP_LINE_S:
                     return False
             else: # WE
-                # 東向き (W->E, dir=1)
-                if vehicle.direction == 1 and vehicle.x < STOP_LINE_W + 20 and vehicle.x >= STOP_LINE_W:
+                # ★★★ ここからが修正箇所 ★★★
+                # 東向き (W->E, dir=1), 車両の前端は x + draw_width
+                if vehicle.direction == 1 and (vehicle.x + vehicle.draw_width) > STOP_LINE_W - detection_range and (vehicle.x + vehicle.draw_width) <= STOP_LINE_W:
                     return False
-                # 西向き (E->W, dir=-1)
-                if vehicle.direction == -1 and (vehicle.x + vehicle.draw_width) > STOP_LINE_E - 20 and (vehicle.x + vehicle.draw_width) <= STOP_LINE_E:
+                # 西向き (E->W, dir=-1), 車両の前端は x
+                if vehicle.direction == -1 and vehicle.x < STOP_LINE_E + detection_range and vehicle.x >= STOP_LINE_E:
                     return False
+                # ★★★ ここまでが修正箇所 ★★★
 
         # --- 2. 先行車との衝突チェック ---
-        # 車両長さの1/5を安全な車間距離とする
         safety_gap = vehicle.length / 5
 
         for other in self.vehicles:
             if vehicle is other or vehicle.road != other.road or vehicle.direction != other.direction:
                 continue
 
-            # is_other_ahead: otherがvehicleの進行方向にいるか
-            # gap: vehicleの前端とotherの後端の距離
             is_other_ahead = False
             gap = float('inf')
 
@@ -146,7 +145,6 @@ class Simulation:
                         is_other_ahead = True
                         gap = vehicle.x - (other.x + other.draw_width)
             
-            # 先行車がいて、車間距離が安全距離より短い場合は停止
             if is_other_ahead and gap < safety_gap:
                 return False
 
