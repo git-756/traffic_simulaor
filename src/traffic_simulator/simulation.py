@@ -2,7 +2,6 @@ import random
 
 class TrafficLight:
     """信号機の状態を管理するクラス"""
-    # 修正点: __init__メソッドに引数 initial_state と durations を追加
     def __init__(self, initial_state, durations):
         self.states = ["青", "黄", "赤"]
         self.durations = durations
@@ -10,7 +9,6 @@ class TrafficLight:
         self.timer = self.durations[self.current_state]
 
     def update(self, delta_time):
-        """時間経過で信号の状態を更新する"""
         self.timer -= delta_time
         if self.timer <= 0:
             current_index = self.states.index(self.current_state)
@@ -21,64 +19,60 @@ class TrafficLight:
 class Vehicle:
     """車両を管理するクラス"""
     def __init__(self, road, direction):
-        self.road = road  # "NS" (南北) or "WE" (東西)
-        self.direction = direction  # 1 (南→北, 西→東) or -1 (北→南, 東→西)
+        self.road = road
+        self.direction = direction
         
-        # 初期位置を設定
-        if self.road == "NS":
-            self.x = 425 if direction == 1 else 475
-            self.y = 800 if direction == 1 else 0
-        else: # WE
-            self.x = 0 if direction == 1 else 800
-            self.y = 475 if direction == 1 else 425
-            
+        self.length = 50
+        self.width_on_road = 20
         self.speed = 2
-        self.width = 20
-        self.height = 40
+        
+        LANE_CENTER_NS_N = 390
+        LANE_CENTER_NS_S = 510
+        LANE_CENTER_WE_W = 390
+        LANE_CENTER_WE_E = 510
+        
+        if self.road == "NS":
+            self.draw_width = self.width_on_road
+            self.draw_height = self.length
+            self.y = 800 if direction == 1 else -self.draw_height
+            self.x = LANE_CENTER_NS_S - self.draw_width / 2 if direction == 1 else LANE_CENTER_NS_N - self.draw_width / 2
+        else: # WE
+            self.draw_width = self.length
+            self.draw_height = self.width_on_road
+            self.x = -self.draw_width if direction == 1 else 800
+            self.y = LANE_CENTER_WE_W - self.draw_height / 2 if direction == 1 else LANE_CENTER_WE_E - self.draw_height / 2
 
     def move(self):
-        """車両を移動させる"""
         if self.road == "NS":
             self.y -= self.speed * self.direction
-        else: # WE
+        else:
             self.x += self.speed * self.direction
             
     def is_out_of_bounds(self, width, height):
-        """車両が画面外に出たか判定"""
-        return self.x < -self.width or self.x > width or \
-               self.y < -self.height or self.y > height
+        return self.x > width or self.x < -self.draw_width or \
+               self.y > height or self.y < -self.draw_height
 
 class Simulation:
     """シミュレーション全体を管理するクラス"""
     def __init__(self):
-        # 1サイクルの合計時間を40秒に統一する
-        
-        # 南北: 青(15s) + 黄(3s) + 赤(22s) = 40s
         self.ns_light = TrafficLight("青", {"青": 15, "黄": 3, "赤": 22})
-        
-        # 東西: 青(10s) + 黄(2s) + 赤(28s) = 40s
         self.we_light = TrafficLight("赤", {"赤": 28, "青": 10, "黄": 2})
-        
         self.vehicles = []
         self.time_since_last_spawn = 0
         self.spawn_interval = 2
 
     def update(self, delta_time):
-        """シミュレーションの状態を1フレーム分更新する"""
         self.ns_light.update(delta_time)
         self.we_light.update(delta_time)
 
-        # 車両の生成
         self.time_since_last_spawn += delta_time
         if self.time_since_last_spawn >= self.spawn_interval:
             self.spawn_vehicle()
             self.time_since_last_spawn = 0
 
-        # 車両の移動と削除
         vehicles_to_remove = []
         for v in self.vehicles:
-            can_move = self.check_can_move(v)
-            if can_move:
+            if self.check_can_move(v):
                 v.move()
 
             if v.is_out_of_bounds(800, 800):
@@ -87,56 +81,73 @@ class Simulation:
         self.vehicles = [v for v in self.vehicles if v not in vehicles_to_remove]
 
     def spawn_vehicle(self):
-        """新しい車両をランダムに生成する"""
         road = random.choice(["NS", "WE"])
         direction = random.choice([1, -1])
+        # 新しい車両が既存の車両と重ならないかチェック
+        # (簡易的なチェック: 同じ進入路の最後の車と十分に離れているか)
+        # ※今回はcheck_can_moveが頑健になったので、ここでのチェックは不要
         self.vehicles.append(Vehicle(road, direction))
 
     def check_can_move(self, vehicle):
-        """車両が信号に従って動けるか判定する"""
-        # --- 停止線の座標を定義 ---
-        # 北から南へ向かう車両の停止線 (Y座標)
+        """車両が動けるか（信号と先行車）を判定する"""
+        
+        # --- 1. 信号のチェック ---
         STOP_LINE_N = 350
-        # 南から北へ向かう車両の停止線 (Y座標)
         STOP_LINE_S = 550
-        # 西から東へ向かう車両の停止線 (X座標)
         STOP_LINE_W = 350
-        # 東から西へ向かう車両の停止線 (X座標)
         STOP_LINE_E = 550
+        
+        light_state = self.ns_light.current_state if vehicle.road == "NS" else self.we_light.current_state
+        if light_state in ["赤", "黄"]:
+            if vehicle.road == "NS":
+                # 南向き (N->S, dir=-1)
+                if vehicle.direction == -1 and (vehicle.y + vehicle.draw_height) > STOP_LINE_N - 20 and (vehicle.y + vehicle.draw_height) <= STOP_LINE_N:
+                    return False
+                # 北向き (S->N, dir=1)
+                if vehicle.direction == 1 and vehicle.y < STOP_LINE_S + 20 and vehicle.y >= STOP_LINE_S:
+                    return False
+            else: # WE
+                # 東向き (W->E, dir=1)
+                if vehicle.direction == 1 and vehicle.x < STOP_LINE_W + 20 and vehicle.x >= STOP_LINE_W:
+                    return False
+                # 西向き (E->W, dir=-1)
+                if vehicle.direction == -1 and (vehicle.x + vehicle.draw_width) > STOP_LINE_E - 20 and (vehicle.x + vehicle.draw_width) <= STOP_LINE_E:
+                    return False
 
-        if vehicle.road == "NS":
-            light_state = self.ns_light.current_state
-            # 信号が赤または黄の場合のみ、停止判定を行う
-            if light_state in ["赤", "黄"]:
-                # 北から南へ (direction=-1)。停止線に到達する前か？
-                if vehicle.direction == -1:
-                    vehicle_front_y = vehicle.y + vehicle.height
-                    # 停止線の手前50ピクセルの範囲に先端が入ったら停止
-                    if (STOP_LINE_N - 50) < vehicle_front_y < STOP_LINE_N:
-                        return False
-                
-                # 南から北へ (direction=1)。停止線に到達する前か？
-                elif vehicle.direction == 1:
-                    vehicle_front_y = vehicle.y
-                    # 停止線の手前50ピクセルの範囲に先端が入ったら停止
-                    if STOP_LINE_S < vehicle_front_y < (STOP_LINE_S + 50):
-                        return False
-        else: # WE
-            light_state = self.we_light.current_state
-            if light_state in ["赤", "黄"]:
-                # 西から東へ (direction=1)。停止線に到達する前か？
-                if vehicle.direction == 1:
-                    vehicle_front_x = vehicle.x
-                    # 停止線の手前50ピクセルの範囲に先端が入ったら停止
-                    if (STOP_LINE_W - 50) < vehicle_front_x < STOP_LINE_W:
-                        return False
+        # --- 2. 先行車との衝突チェック ---
+        # 車両長さの1/5を安全な車間距離とする
+        safety_gap = vehicle.length / 5
 
-                # 東から西へ (direction=-1)。停止線に到達する前か？
-                elif vehicle.direction == -1:
-                    vehicle_front_x = vehicle.x + vehicle.height # 横向きなのでheightが幅
-                    # 停止線の手前50ピクセルの範囲に先端が入ったら停止
-                    if STOP_LINE_E < vehicle_front_x < (STOP_LINE_E + 50):
-                        return False
+        for other in self.vehicles:
+            if vehicle is other or vehicle.road != other.road or vehicle.direction != other.direction:
+                continue
 
-        # 上記の停止条件に当てはまらない場合は、すべて動ける
+            # is_other_ahead: otherがvehicleの進行方向にいるか
+            # gap: vehicleの前端とotherの後端の距離
+            is_other_ahead = False
+            gap = float('inf')
+
+            if vehicle.road == "NS":
+                if vehicle.direction == 1: # 北向き (S->N)
+                    if other.y < vehicle.y:
+                        is_other_ahead = True
+                        gap = vehicle.y - (other.y + other.draw_height)
+                else: # 南向き (N->S)
+                    if other.y > vehicle.y:
+                        is_other_ahead = True
+                        gap = other.y - (vehicle.y + vehicle.draw_height)
+            else: # WE
+                if vehicle.direction == 1: # 東向き (W->E)
+                    if other.x > vehicle.x:
+                        is_other_ahead = True
+                        gap = other.x - (vehicle.x + vehicle.draw_width)
+                else: # 西向き (E->W)
+                    if other.x < vehicle.x:
+                        is_other_ahead = True
+                        gap = vehicle.x - (other.x + other.draw_width)
+            
+            # 先行車がいて、車間距離が安全距離より短い場合は停止
+            if is_other_ahead and gap < safety_gap:
+                return False
+
         return True
