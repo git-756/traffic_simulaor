@@ -56,11 +56,13 @@ https://samurai-human-go.com/gif/py_simu_traffic.gif
 * 交通量に応じて信号が変化する「交通感応式制御」の実装
 * 強化学習を用いた信号サイクルの最適化
 
-## ライセンス
+## 📜 ライセンス
 
-このプロジェクトはMITライセンスのもとで公開されています。詳細は[LICENSE](LICENSE)ファイルをご覧ください。
+このプロジェクトは **MIT License** のもとで公開されています。ライセンスの全文については、[LICENSE](LICENSE) ファイルをご覧ください。
 
-## 作者
+また、このプロジェクトはサードパーティ製のライブラリを利用しています。これらのライブラリのライセンス情報については、[NOTICE.md](NOTICE.md) ファイルに記載しています。
 
-Samurai-Human-Go
-https://samurai-human-go.com/
+## 作成者
+[Samurai-Human-Go](https://samurai-human-go.com/%e9%81%8b%e5%96%b6%e8%80%85%e6%83%85%e5%a0%b1/)
+
+**ブログ記事**: [ブログ](https://samurai-human-go.com)
